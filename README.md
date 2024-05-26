@@ -9,9 +9,3 @@ Therefore, this data may be subject to copyrights of the author of this book.
 A previous version of the repository material was based on the first edition of the mentioned book:
 
 NAVARRO, E. A. Curso de Língua Geral (nheengatu ou tupi moderno): a língua das origens da civilização amazônica. São Bernardo do Campo: Paym, 2011.
-
-## Examples
-
-```python
-python main.py data/corpus/universal-dependencies/moore.conllu
-```

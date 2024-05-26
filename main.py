@@ -27,9 +27,12 @@ def main():
     WE = nh.extractMWEs(DICTIONARY)
     print(cp.MESSAGE)
     lines = []
-    with open(args.infile) as f:
-        lines = f.readlines()
-    nh.tagText(lines)
+    try:
+        with open(args.infile) as f:
+            lines = f.readlines()
+        nh.tagText(lines)
+    except FileNotFoundError as e:
+        print(e)
 
 
 if __name__ == "__main__":
