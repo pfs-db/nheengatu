@@ -1,5 +1,9 @@
 # Suggestions - Changes
 
+## Handling script arguments
+
+Using the argparse module is easier and scalable to deal with extra arguments in a script.
+
 ## Wiki
 
 - Arriving at the repository anyone can get an idea what the repository can do, but they don't now the HOW. To be more specific how to test it and try out by itself.
