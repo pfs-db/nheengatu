@@ -4,11 +4,10 @@
 # Last update: February 16, 2024
 
 import os, sys, string, json, datetime
-from BuildDictionary import extract_feats, loadLexicon, guesser
+from src.BuildDictionary import loadLexicon, guesser
+import src.common_paths as cp
 
-USER=os.path.expanduser("~")
-PATH=os.path.join(USER,"complin/nheengatu/data")
-LEXICONFILE=os.path.join(PATH,"lexicon.json")
+LEXICONFILE=cp.DATA_PATH.joinpath("lexicon.json")
 LEXICON=loadLexicon(LEXICONFILE)
 DASHES=['‒', '–', '—','―']
 PUNCTUATION='''.,;':?!“”"…()][}{'''
@@ -92,7 +91,7 @@ def convertDictionary(dic):
 
 def buildDictionary(infile="lexicon.json"):
     tagger={}
-    if infile.endswith("json"):
+    if str(infile).endswith("json"):
         with open(infile, encoding="utf-8") as f:
             tagger = convertDictionary(json.load(f))
     else:
