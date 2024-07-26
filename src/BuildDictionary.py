@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # Author: Leonel Figueiredo de Alencar
-# Last update: April 5, 2024
+# Last update: June 13, 2024
 
 import re, sys, os, json
 
@@ -15,6 +15,12 @@ LEXICON=os.path.join(DIR,"lexicon.json")
 
 # non-finite verb
 NFIN="NFIN"
+
+# archaic forms
+ARCHAIC='ARCH'
+
+# historical variants
+ARCHAIC_LEMMA="var. hist."
 
 # imperative verb form
 IMP="IMP"
@@ -125,7 +131,10 @@ v. 3ª cl.\tV3\tverbo de 3ª classe
 {VSUFF}\tVSUFF\tverbo sufixal não-flexionável
 """
 
-PRONOUNS=('PRON','PRON2','PROND')
+FIRST_CLASS_PRONOUNS=['PRON','PROND']
+SECOND_CLASS_PRONOUNS=['PRON2']
+PRONOUNS=FIRST_CLASS_PRONOUNS+SECOND_CLASS_PRONOUNS
+
 def sortFunc(line):
 	return line[1]
 
@@ -141,7 +150,7 @@ for line in TABLE:
 def pprintTable(outfile=None):
     f=sys.stdout
     if outfile:
-        f=open(outfile,'w')
+        f=open(outfile,'w', encoding="utf-8")
     f.write("|**etiqueta**|**abreviatura no glossário**|**expansão da abreviatura**|\n")
     f.write("|------------|----------------------------|---------------------------|\n")
     for line in sorted(TABLE,key=sortFunc):
@@ -160,17 +169,17 @@ def loadGlossary(glossary=None, jsonformat=GLOSSARY):
     if glossary:
         glossary=glossary
     else:
-        with open(jsonformat) as f:
+        with open(jsonformat, encoding="utf-8") as f:
             glossary = json.load(f)
     return glossary
 
 def loadLexicon(infile=LEXICON):
-    with open(infile) as f:
+    with open(infile, encoding="utf-8") as f:
         lexicon = json.load(f)
     return lexicon
 
 def saveJSON(glossary, outfile=GLOSSARY):
-    with open(outfile, "w") as write_file:
+    with open(outfile, "w", encoding="utf-8") as write_file:
         json.dump(glossary, write_file, indent=4, ensure_ascii=False)
 
 def saveGlossary(infile=INFILE,outfile=GLOSSARY):
@@ -187,7 +196,11 @@ def getwords(key,value,textformat=None, jsonformat=GLOSSARY):
     return list(filter(lambda x: x.get(key) == value, glossary))
 
 def extractLines(infile):
-    return [line.strip() for line in open(infile,"r").readlines() if line.strip() != ""]
+    return [line.strip() for line in open(infile,"r", encoding="utf-8").readlines() if not ignore(line)]
+
+def ignore(line):
+	line=line.strip()
+	return line == "" or line.startswith('#')
 
 def extractEntries(lines):
     entries=[]
@@ -239,6 +252,7 @@ def makeNumber(forms):
     for form,parse in forms:
         entries.add(f"{form}\t{parse}+SG")
         entries.add(f"{form}-itá\t{parse}+PL")
+        entries.add(f"{form}-etá\t{parse}+PL")
     return entries
 
 def isImpersonal(entry):
@@ -345,7 +359,7 @@ def parseprefs(word,lexicon):
 def getpersnum():
     """Active person-number prefixes.
     """
-    return {'a': '1+SG','re': '2+SG','e': f"{IMP}+2+SG",'u': '3','ya':
+    return {'a': '1+SG','xa': f"{ARCHAIC}+1+SG",'ha': '1+SG','re': '2+SG','e': f"{IMP}+2+SG",'u': '3','ya':
     '1+PL','pe': '2+PL','ta': '3+PL','tau': '3+PL'
     }
 
@@ -368,28 +382,48 @@ def guessVerb(form):
 		return list(filter(lambda x: x['pref'] == 'tau',entries))[0]
 	return entries[0]
 
+def extractArchaicLemmas(glossary):
+    archaic_lemmas=[]
+    entries=list(filter(lambda x: ARCHAIC_LEMMA in x['gloss'], glossary))
+    for entry in entries:
+        dic={}
+        dic['ancient']=entry['lemma']
+        dic['modern']=entry['gloss'].split('.')[-1].strip()
+        dic['xpos']=MAPPING[entry['pos']]
+        archaic_lemmas.append(dic)
+    return archaic_lemmas
+
+# TODO: extract both types of pronouns from the glossary
+# TODO: to which other archaic lemmas should the feature Style=Arch be assigned?
 def secondclasspron():
     """2nd class pronouns (Avila, 2021; Navarro, 2020),
     stative person-number prefixes (Cruz, 2011).
     """
-    return {'se': '1+SG', 'xe': '1+SG','ne': '2+SG','i': '3+SG','yané':
-    '1+PL','pe': '2+PL','tá': '3+PL', 'ta': '3+PL','aintá': '3+PL'
+    return {'se': '1+SG', 'xe': '1+SG','ne': '2+SG','i': '3+SG',
+	'yané': '1+PL', 'yandé': f"{ARCHAIC}+1+PL", 'pe': '2+PL',
+	'tá': '3+PL', # TODO: deprecated  form to be removed
+	'ta': '3+PL','aintá': '3+PL'
     }
 
 def firstclasspron():
-    """First class pronouns (Avila, 2021; Navarro, 2020),
+    """1st class pronouns (Avila, 2021; Navarro, 2020),
     personal and anaphoric pronouns (Cruz, 2011).
     """
-    return {'ixé': '1+SG','indé': '2+SG','iné': '2+SG','aé': '3+SG','yandé':
-    '1+PL','penhẽ': '2+PL','tá': '3+PL', 'ta': '3+PL','aintá': '3+PL', 'indéu': '2+SG+DAT',
-	'inéu': '2+SG+DAT', 'yandéu': '1+PL+DAT', 'yanéu': '1+PL+DAT', 'ixéu': '1+SG+DAT',
-	'penhemu': '2+PL+DAT'
+    return {'ixé': '1+SG','indé': '2+SG','iné': '2+SG','aé': '3+SG',
+    'yandé': '1+PL','yané': f"{ARCHAIC}+1+PL", 'penhẽ': '2+PL',
+    'tá': '3+PL', # TODO: deprecated  form to be removed
+    'ta': '3+PL','aintá': '3+PL', 'indéu': '2+SG+DAT',
+    'inéu': '2+SG+DAT', 'yandéu': '1+PL+DAT', 'yanéu': '1+PL+DAT', 'ixéu': '1+SG+DAT',
+    'penhemu': '2+PL+DAT'
     }
 
 def expandpronoun(lemma, pos):
-    prons=firstclasspron()
-    prons.update(secondclasspron())
-    return f"{lemma}\t{lemma}+{pos}+{prons[lemma]}"
+	feats=''
+	if pos in FIRST_CLASS_PRONOUNS:
+		feats=firstclasspron()[lemma]
+	elif pos in SECOND_CLASS_PRONOUNS:
+		feats=secondclasspron()[lemma]
+	return f"{lemma}\t{lemma}+{pos}+{feats}"
 
 def handleV3(lemma,tag):
 	forms=set()
@@ -511,7 +545,7 @@ def sort(s):
     return s[i+1:]
 
 def endswith(token,suff):
-    pat=rf"(^.+)({suff})(-itá)?$"
+    pat=rf"(^.+)({suff})(-itá|-etá)?$"
     match=re.match(pat,token)
     if match:
         return match.groups()
@@ -545,7 +579,7 @@ def extract_feats(parses):
     'NFIN' : 'vform', 'AUG|DIM' : 'degree',
 	'IMP' : 'mood',
 	'FREQ|HAB':'aspect', 'PRV|COL':'derivation',
-	'PRES|PAST': 'tense', 'RED' : 'redup', 'DAT' : 'case' }
+	'PRES|PAST': 'tense', 'RED' : 'redup', 'DAT' : 'case', 'ARCH' : 'style' }
     entries=[]
     for lemma,feats in parses:
         new={}
@@ -640,7 +674,7 @@ def guesser(token,lexicon):
                         new['lemma']=ent.get('lemma')
                         if entry.get('pos'):
                             new['pos']=entry['pos']
-                        if groups[2] == '-itá':
+                        if groups[2] == '-itá' or groups[2] == '-etá':
                             new.update(plural)
                             #print(f"new: {new}")
                         copy_feats(ent,new)
@@ -650,7 +684,7 @@ def guesser(token,lexicon):
                         newentries.append(new)
              if not newentries:
                 new={}
-                if groups[2] == '-itá':
+                if groups[2] == '-itá' or groups[2] == '-etá':
                     new.update(plural)
                 new['lemma']=base
                 copy_feats(entry,new)
@@ -690,7 +724,7 @@ def test(outfile='outfile.txt', words=words()):
     output={}
     for word in words:
         output[word]=guesser(word,lexicon)
-    with open(outfile, 'w') as f:
+    with open(outfile, 'w', encoding="utf-8") as f:
         if outfile.endswith(".json"):
             json.dump(output,
             f,
@@ -763,7 +797,7 @@ def main(infile=INFILE,outfile=LEXICON,path=None):
     glossary=buildGlossary(entries)
     pairs=list(WordParsePairs(glossary))
     pairs.sort(key= sort)
-    with open(outfile, 'w') as f:
+    with open(outfile, 'w', encoding="utf-8") as f:
         if outfile.endswith(".json"):
             json.dump(WordParseDict(pairs),
             f,
