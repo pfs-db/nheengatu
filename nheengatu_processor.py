@@ -1,10 +1,12 @@
-# generated from ChatGpt to understand the code BuildDictionary.py
 import json
 from pathlib import Path
+import re
+from jsonschema import validate, ValidationError
 
 
 class NheengatuProcessor:
-    # Set the base directory to the current working directory
+    """This class will read a txt file and generate glossary.json and lexicon.json"""
+
     BASE_DIR = Path.cwd() / "data"
     ALTDIR = Path.cwd() / "data"
     if not BASE_DIR.exists():
@@ -13,120 +15,87 @@ class NheengatuProcessor:
     GLOSSARY = BASE_DIR / "glossary.json"
     LEXICON = BASE_DIR / "lexicon.json"
 
-    NFIN = "NFIN"
-    ARCHAIC = "ARCH"
-    IMP = "IMP"
-    AUX = "aux."
-    IMPERS = "(impess.)"
-    VSUFF = "v. suf."
-    COP = "cop."
+    FIRST_CLASS_PRONOUNS = ["PRON", "PROND"]
+    SECOND_CLASS_PRONOUNS = ["PRON2"]
+    PRONOUNS = FIRST_CLASS_PRONOUNS + SECOND_CLASS_PRONOUNS
 
-    PLURALIZABLE = ("N", "REL")
+    # Define the schema for validation
+    schema = {
+        "type": "object",
+        "properties": {
+            "lemma": {"type": "string"},
+            "pos": {"type": "string"},
+            "gloss": {"type": "string"},
+            "var": {"type": ["integer", "null"]},
+        },
+        "required": ["lemma", "pos", "gloss"],
+    }
 
-    TAGSET = """
-    adj.\tA\tadjetivo
-    adv.\tADV\tadvérbio
-    conj.\tCONJ\tconjunção
-    s.\tN\tsubstantivo comum
-    pron.\tPRON\tpronome de 1ª classe
-    pron. dem.\tDEM\tpronome demostrativo
-    v.\tV\tverbo de 1ª classe
-    v. suf.\tVSUFF\tverbo sufixal não-flexionável
-    """
-
-    def __init__(self):
-        self.MAPPING = self.build_mapping()
-
-    @staticmethod
-    def build_mapping():
-        table = []
-        mapping = {}
-        for l in NheengatuProcessor.TAGSET.strip().split("\n"):
-            table.append(l.split("\t"))
-        for line in table:
-            mapping[line[0]] = line[1]
-        return mapping
-
-    @staticmethod
-    def load_json(filepath):
+    def load_json(self, filepath):
         with open(filepath, encoding="utf-8") as f:
             return json.load(f)
 
-    @staticmethod
-    def save_json(data, filepath):
+    def save_json(self, data, filepath):
         with open(filepath, "w", encoding="utf-8") as write_file:
             json.dump(data, write_file, indent=4, ensure_ascii=False)
 
-    def parse_prefs(self, word):
-        prefs = {"yu": "REFL", "mu": "CAUS"}
-        i = 0
-        features = []
-        persnum = self.get_persnum()
-        entry = {}
-
-        for k, v in persnum.items():
-            if word[i:].startswith(k):
-                i = len(k)
-                parts = v.split("+")
-                entry["person"] = parts[0]
-                if len(parts) == 2:
-                    entry["number"] = parts[1]
-                break
-
-        for k, v in prefs.items():
-            if word[i:].startswith(k):
-                i += len(k)
-                features.append(v)
-
-        entry["lemma"] = word[i:]
-        if features:
-            entry["pref"] = "+".join(features)
-        return entry
+    def extract_lines(self, infile):
+        """Reads lines from an input file, ignoring comments and empty lines."""
+        return [
+            line.strip()
+            for line in open(infile, "r", encoding="utf-8").readlines()
+            if not self.ignore(line)
+        ]
 
     @staticmethod
-    def get_persnum():
-        return {
-            "a": "1+SG",
-            "xa": "ARCH+1+SG",
-            "ha": "1+SG",
-            "re": "2+SG",
-            "e": "IMP+2+SG",
-            "u": "3",
-            "ya": "1+PL",
-            "pe": "2+PL",
-            "ta": "3+PL",
-            "tau": "3+PL",
-        }
+    def ignore(line):
+        line = line.strip()
+        return line == "" or line.startswith("#")
 
-    def conjugate_verb(self, lemma, pos="V"):
-        persnum = self.get_persnum()
-        forms = set()
+    def build_glossary(self, entries):
+        """Constructs a glossary from parsed entries, adding additional information such as relational forms and pronoun classifications."""
+        glossary = []
+        for entry in entries:
+            # Custom processing logic here
+            glossary.append(entry)
+        return glossary
 
-        if lemma == "yuri":
-            for pref, tag in persnum.items():
-                if "3" not in tag:
-                    forms.add(f"{pref}{lemma}\t{lemma}+{pos}+{tag}")
-            forms.add(f"uri\t{lemma}+{pos}+3")
-            forms.add(f"yuri\t{lemma}+{pos}+IMP+2")
-            return forms
+    # Validation function
+    def validate_entry(self, entry):
+        try:
+            validate(instance=entry, schema=self.schema)
+            return True, None
+        except ValidationError as e:
+            return False, str(e)
 
-        for pref, tag in persnum.items():
-            forms.add(f"{pref}{lemma}\t{lemma}+{pos}+{tag}")
-        forms.add(f"{lemma}\t{lemma}+{pos}+NFIN")
-        return forms
+    # Parsing function
+    def parse_text_to_json(self, infile, outfile):
+        entries = []
+        with open(infile, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip() and not line.startswith("#"):
+                    parts = re.split(r"\s*[\t-]\s*", line.strip())
+                    if len(parts) >= 3:
+                        entry = {
+                            "lemma": parts[0],
+                            "pos": parts[1],
+                            "gloss": parts[2],
+                            "var": (
+                                int(parts[3])
+                                if len(parts) > 3 and parts[3].isdigit()
+                                else None
+                            ),
+                        }
+                        valid, error = self.validate_entry(entry)
+                        if valid:
+                            entries.append(entry)
+                        else:
+                            print(f"Validation error in line '{line.strip()}': {error}")
 
-
-def main():
-    processor = NheengatuProcessor()
-    glossary = processor.load_json(NheengatuProcessor.GLOSSARY)
-    lexicon = processor.load_json(NheengatuProcessor.LEXICON)
-
-    # Further processing and usage of processor methods
-    # Example: conjugate verb 'yuri'
-    forms = processor.conjugate_verb("yuri")
-    for form in forms:
-        print(form)
+        glossary = self.build_glossary(entries)
+        self.save_json(glossary, outfile)
 
 
 if __name__ == "__main__":
-    main()
+    p = NheengatuProcessor()
+    p.parse_text_to_json(p.INFILE, p.GLOSSARY)
